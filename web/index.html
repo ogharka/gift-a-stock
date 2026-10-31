@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Gift a Stock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.4/dist/ethers.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f1ea; --card: #fffdf9; --ink: #1d1a17; --muted: #6f665c; --line: #e6ddd1;
+    --accent: #6b3fd6; --accent-ink: #fff; --ok: #1f7a4d; --bad: #b3261e; --ribbon: #e8b84a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15131a; --card: #1e1b24; --ink: #f2eee8; --muted: #a59d93; --line: #2f2a36;
+      --accent: #9d7bff; --accent-ink: #15131a; --ok: #5cc98f; --bad: #ff8a80; --ribbon: #e8b84a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 Inter, system-ui, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-family: Fraunces, Georgia, serif; font-size: 40px; line-height: 1.1; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .testnet { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+    background: var(--ribbon); color: #1d1a17; padding: 3px 8px; border-radius: 999px; margin-bottom: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 22px; margin-bottom: 16px; }
+  .gift { position: relative; overflow: hidden; }
+  .gift::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 14px; margin-left: -7px; background: var(--ribbon); opacity: .25; }
+  .gift > * { position: relative; }
+  label { display: block; font-size: 14px; font-weight: 600; margin: 14px 0 6px; }
+  input, textarea, select { width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; }
+  textarea { resize: vertical; min-height: 72px; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 12px 16px; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink); width: 100%; margin-top: 16px; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tabs button { margin: 0; background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .tabs button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .status { font-size: 14px; color: var(--muted); margin-top: 12px; min-height: 1.5em; word-break: break-word; }
+  .status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
+  .link { font-family: ui-monospace, Menlo, monospace; font-size: 12px; word-break: break-all; background: var(--bg);
+    border: 1px dashed var(--line); border-radius: 10px; padding: 10px; margin-top: 10px; }
+  .big { font-family: Fraunces, Georgia, serif; font-size: 34px; margin: 4px 0; }
+  .msg { font-size: 18px; font-style: italic; margin: 10px 0 0; }
+  .muted { color: var(--muted); font-size: 14px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <span class="testnet">Ink Sepolia testnet · play money</span>
+  <h1>Gift a Stock</h1>
+  <p class="sub">Wrap a slice of a stock in a link. Whoever opens it, keeps it.</p>
+
+  <!-- CLAIM VIEW (shown when the URL carries a gift) -->
+  <section id="claimView" class="hidden">
+    <div class="card gift">
+      <div class="muted" id="cFrom">Someone sent you a gift</div>
+      <div class="big" id="cAmount">…</div>
+      <p class="msg" id="cMsg"></p>
+      <p class="muted" id="cExpiry"></p>
+      <button id="claimBtn">Connect wallet &amp; claim</button>
+      <div class="status" id="cStatus"></div>
+    </div>
+  </section>
+
+  <!-- SEND VIEW -->
+  <section id="sendView">
+    <div class="tabs">
+      <button class="on" data-tab="send">Send a gift</button>
+      <button data-tab="refund">Take one back</button>
+      <button data-tab="setup">Setup</button>
+    </div>
+
+    <div class="card" data-pane="send">
+      <button class="ghost" id="connectBtn" style="margin-top:0">Connect wallet</button>
+      <div class="muted" id="who" style="margin-top:8px"></div>
+      <div class="row">
+        <div><label for="amount">How many shares</label><input id="amount" type="number" min="0.0001" step="0.0001" value="1" /></div>
+        <div><label for="days">Claim within</label>
+          <select id="days"><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option></select></div>
+      </div>
+      <label for="message">Your message (up to 280 characters)</label>
+      <textarea id="message" maxlength="280">Happy birthday! Here's your first share. 🎁</textarea>
+      <button id="faucetBtn" class="ghost">Get 10 free test shares</button>
+      <button id="sendBtn">Wrap the gift</button>
+      <div class="status" id="sStatus"></div>
+      <div id="linkBox" class="hidden">
+        <label>Gift link — send it privately. Anyone with it can claim.</label>
+        <div class="link" id="giftLink"></div>
+        <button class="ghost" id="copyBtn">Copy link</button>
+      </div>
+    </div>
+
+    <div class="card hidden" data-pane="refund">
+      <p class="muted" style="margin-top:0">If your friend didn't claim before the deadline, paste the gift link here to get your shares back.</p>
+      <label for="refundLink">Gift link</label>
+      <input id="refundLink" placeholder="https://…#k=…" />
+      <button id="refundBtn">Take it back</button>
+      <div class="status" id="rStatus"></div>
+    </div>
+
+    <div class="card hidden" data-pane="setup">
+      <p class="muted" style="margin-top:0">Paste the two addresses you got after deploying (see the README). They're saved in this browser.</p>
+      <label for="cfgGifts">GiftAStock contract address</label>
+      <input id="cfgGifts" placeholder="0x…" />
+      <label for="cfgToken">Test stock token address</label>
+      <input id="cfgToken" placeholder="0x…" />
+      <button id="saveCfg">Save</button>
+      <div class="status" id="cfgStatus"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const INK_SEPOLIA = {
+  chainId: 763373,
+  hex: "0xba5ed",
+  name: "Ink Sepolia",
+  rpc: "https://rpc-gel-sepolia.inkonchain.com",
+  explorer: "https://explorer-sepolia.inkonchain.com",
+};
+
+const GIFTS_ABI = [
+  "function createGift(address giftKey,address token,uint256 amount,uint64 expiresAt,string message)",
+  "function claim(address giftKey,address recipient,bytes signature)",
+  "function refund(address giftKey)",
+  "function claimHash(address giftKey,address recipient) view returns (bytes32)",
+  "function gifts(address) view returns (address sender,address token,uint256 amount,uint64 expiresAt,bool settled,string message)",
+];
+const TOKEN_ABI = [
+  "function approve(address,uint256) returns (bool)",
+  "function allowance(address,address) view returns (uint256)",
+  "function balanceOf(address) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+  "function faucet(uint256)",
+];
+
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+function setStatus(el, text, kind = "") { el.textContent = text; el.className = "status " + kind; }
+function niceError(e) {
+  const m = e?.shortMessage || e?.reason || e?.info?.error?.message || e?.message || String(e);
+  if (/user rejected|denied/i.test(m)) return "You cancelled it in your wallet.";
+  return m;
+}
+function config() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  return { gifts: p.get("c") || store.get("gifts"), token: store.get("token") };
+}
+
+// ---------- wallet ----------
+let signer = null;
+async function connect() {
+  if (!window.ethereum) throw new Error("No wallet found. Install MetaMask (free) and reload this page.");
+  await window.ethereum.request({ method: "eth_requestAccounts" });
+  try {
+    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: INK_SEPOLIA.hex }] });
+  } catch (e) {
+    if (e.code !== 4902) throw e;
+    await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
+      chainId: INK_SEPOLIA.hex, chainName: INK_SEPOLIA.name,
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: [INK_SEPOLIA.rpc], blockExplorerUrls: [INK_SEPOLIA.explorer],
+    }] });
+  }
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  signer = await provider.getSigner();
+  return signer;
+}
+const readProvider = () => new ethers.JsonRpcProvider(INK_SEPOLIA.rpc, INK_SEPOLIA.chainId);
+
+// ---------- tabs ----------
+document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+  document.querySelectorAll("[data-pane]").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== b.dataset.tab));
+});
+
+// ---------- setup ----------
+$("cfgGifts").value = store.get("gifts");
+$("cfgToken").value = store.get("token");
+$("saveCfg").onclick = () => {
+  const g = $("cfgGifts").value.trim(), t = $("cfgToken").value.trim();
+  if (!ethers.isAddress(g) || !ethers.isAddress(t)) return setStatus($("cfgStatus"), "Both need to be 0x… addresses.", "bad");
+  store.set("gifts", g); store.set("token", t);
+  setStatus($("cfgStatus"), "Saved.", "ok");
+};
+function requireConfig(el) {
+  const c = config();
+  if (!c.gifts || !c.token) { setStatus(el, "Open the Setup tab and paste your contract addresses first.", "bad"); return null; }
+  return c;
+}
+
+// ---------- send ----------
+$("connectBtn").onclick = async () => {
+  try { const s = await connect(); $("who").textContent = "Connected: " + (await s.getAddress()); }
+  catch (e) { setStatus($("sStatus"), niceError(e), "bad"); }
+};
+
+$("faucetBtn").onclick = async () => {
+  const c = requireConfig($("sStatus")); if (!c) return;
+  const btn = $("faucetBtn"); btn.disabled = true;
+  try {
+    const s = signer || await connect();
+    const token = new ethers.Contract(c.token, TOKEN_ABI, s);
+    setStatus($("sStatus"), "Confirm in your wallet…");
+    const tx = await token.faucet(ethers.parseUnits("10", await token.decimals()));
+    setStatus($("sStatus"), "Minting…"); await tx.wait();
+    setStatus($("sStatus"), "You now have 10 more test shares.", "ok");
+  } catch (e) { setStatus($("sStatus"), niceError(e), "bad"); }
+  btn.disabled = false;
+};
+
+$("sendBtn").onclick = async () => {
+  const c = requireConfig($("sStatus")); if (!c) return;
+  const btn = $("sendBtn"); btn.disabled = true; $("linkBox").classList.add("hidden");
+  try {
+    const s = signer || await connect();
+    const me = await s.getAddress();
+    const token = new ethers.Contract(c.token, TOKEN_ABI, s);
+    const gifts = new ethers.Contract(c.gifts, GIFTS_ABI, s);
+    const decimals = await token.decimals();
+    const amount = ethers.parseUnits($("amount").value || "0", decimals);
+    if (amount <= 0n) throw new Error("Enter how many shares to send.");
+    if ((await token.balanceOf(me)) < amount) throw new Error("Not enough shares. Tap 'Get 10 free test shares' first.");
+    const message = $("message").value;
+    if (new TextEncoder().encode(message).length > 280) throw new Error("Message is too long.");
+
+    // 1. Fresh one-time key. Its secret only ever lives in the link.
+    const giftKey = ethers.Wallet.createRandom();
+    const expiresAt = Math.floor(Date.now() / 1000) + Number($("days").value) * 86400;
+
+    // 2. Let the gift contract take the shares.
+    if ((await token.allowance(me, c.gifts)) < amount) {
+      setStatus($("sStatus"), "Step 1 of 2: approve the shares in your wallet…");
+      await (await token.approve(c.gifts, amount)).wait();
+    }
+    // 3. Lock them.
+    setStatus($("sStatus"), "Step 2 of 2: wrap the gift in your wallet…");
+    await (await gifts.createGift(giftKey.address, c.token, amount, expiresAt, message)).wait();
+
+    // The secret sits after "#", so it is never sent to any server.
+    const link = `${location.origin}${location.pathname}#k=${giftKey.privateKey}&c=${c.gifts}`;
+    $("giftLink").textContent = link;
+    $("linkBox").classList.remove("hidden");
+    setStatus($("sStatus"), "Wrapped! Send the link below to your friend.", "ok");
+  } catch (e) { setStatus($("sStatus"), niceError(e), "bad"); }
+  btn.disabled = false;
+};
+$("copyBtn").onclick = async () => {
+  try { await navigator.clipboard.writeText($("giftLink").textContent); $("copyBtn").textContent = "Copied"; }
+  catch { $("copyBtn").textContent = "Select and copy it manually"; }
+};
+
+// ---------- refund ----------
+$("refundBtn").onclick = async () => {
+  const btn = $("refundBtn"); btn.disabled = true;
+  try {
+    const raw = $("refundLink").value.trim();
+    const p = new URLSearchParams(raw.split("#")[1] || "");
+    const key = p.get("k"), giftsAddr = p.get("c") || config().gifts;
+    if (!key || !giftsAddr) throw new Error("That doesn't look like a gift link.");
+    const giftKeyAddr = new ethers.Wallet(key).address;
+    const s = signer || await connect();
+    const gifts = new ethers.Contract(giftsAddr, GIFTS_ABI, s);
+    setStatus($("rStatus"), "Confirm in your wallet…");
+    await (await gifts.refund(giftKeyAddr)).wait();
+    setStatus($("rStatus"), "Your shares are back in your wallet.", "ok");
+  } catch (e) {
+    const m = niceError(e);
+    setStatus($("rStatus"), /NotExpired/.test(m) ? "Too early — your friend can still claim it." :
+      /AlreadySettled/.test(m) ? "This gift was already claimed or taken back." :
+      /NotSender/.test(m) ? "Only the person who sent it can take it back." : m, "bad");
+  }
+  btn.disabled = false;
+};
+
+// ---------- claim ----------
+async function loadClaim() {
+  const p = new URLSearchParams(location.hash.slice(1));
+  const key = p.get("k"), giftsAddr = p.get("c");
+  if (!key) return;
+  $("claimView").classList.remove("hidden");
+  $("sendView").classList.add("hidden");
+  let giftKey;
+  try { giftKey = new ethers.Wallet(key); } catch { return setStatus($("cStatus"), "This link is broken.", "bad"); }
+
+  try {
+    const rp = readProvider();
+    const gifts = new ethers.Contract(giftsAddr, GIFTS_ABI, rp);
+    const g = await gifts.gifts(giftKey.address);
+    if (g.sender === ethers.ZeroAddress) throw new Error("No gift found for this link.");
+    const token = new ethers.Contract(g.token, TOKEN_ABI, rp);
+    const [dec, sym] = await Promise.all([token.decimals(), token.symbol()]);
+    $("cAmount").textContent = `${ethers.formatUnits(g.amount, dec)} ${sym}`;
+    $("cMsg").textContent = g.message ? `“${g.message}”` : "";
+    $("cFrom").textContent = `From ${g.sender.slice(0, 6)}…${g.sender.slice(-4)}`;
+    const exp = new Date(Number(g.expiresAt) * 1000);
+    if (g.settled) { $("claimBtn").disabled = true; setStatus($("cStatus"), "This gift has already been opened.", "bad"); }
+    else if (exp < new Date()) { $("claimBtn").disabled = true; setStatus($("cStatus"), "This gift expired and can only go back to the sender.", "bad"); }
+    else $("cExpiry").textContent = `Claim by ${exp.toLocaleString()}`;
+  } catch (e) { setStatus($("cStatus"), niceError(e), "bad"); }
+
+  $("claimBtn").onclick = async () => {
+    const btn = $("claimBtn"); btn.disabled = true;
+    try {
+      const s = signer || await connect();
+      const me = await s.getAddress();
+      const gifts = new ethers.Contract(giftsAddr, GIFTS_ABI, s);
+      // The link's secret signs "send it to me", so nobody can redirect it.
+      const hash = await gifts.claimHash(giftKey.address, me);
+      const sig = await giftKey.signMessage(ethers.getBytes(hash));
+      setStatus($("cStatus"), "Confirm in your wallet…");
+      const tx = await gifts.claim(giftKey.address, me, sig);
+      setStatus($("cStatus"), "Opening your gift…"); await tx.wait();
+      setStatus($("cStatus"), "It's yours! The shares are in your wallet.", "ok");
+      btn.textContent = "Claimed 🎉";
+      return;
+    } catch (e) { setStatus($("cStatus"), niceError(e), "bad"); }
+    btn.disabled = false;
+  };
+}
+loadClaim();
+</script>
+</body>
+</html>
