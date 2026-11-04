@@ -51,11 +51,21 @@
   .muted { color: var(--muted); font-size: 14px; }
   details summary { cursor: pointer; font-weight: 600; }
   .hidden { display: none; }
+  .netbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+  .netbar .testnet { margin: 0; }
+  .netbar select { width: auto; padding: 6px 10px; font-size: 14px; }
+  .testnet.main { background: var(--bad); color: #fff; }
 </style>
 </head>
 <body>
 <main>
-  <span class="testnet">Ink Sepolia testnet · play money</span>
+  <div class="netbar">
+    <span class="testnet" id="netBadge">Ink Sepolia testnet · play money</span>
+    <select id="netPick" aria-label="Network">
+      <option value="763373">Testnet (free)</option>
+      <option value="57073">Mainnet (real money)</option>
+    </select>
+  </div>
   <h1>Gift a Stock</h1>
   <p class="sub">Wrap a slice of a stock in a link. Whoever opens it, keeps it.</p>
 
@@ -108,24 +118,37 @@
     </div>
 
     <div class="card hidden" data-pane="setup">
-      <p class="muted" style="margin-top:0">Paste the two addresses you got after deploying (see the README). They're saved in this browser.</p>
-      <label for="cfgGifts">GiftAStock contract address</label>
-      <input id="cfgGifts" placeholder="0x…" />
-      <label for="cfgToken">Test stock token address</label>
-      <input id="cfgToken" placeholder="0x…" />
-      <button id="saveCfg">Save</button>
-      <div class="status" id="cfgStatus"></div>
+      <p class="muted" style="margin-top:0">One-time setup for <b class="netName"></b>. Your wallet signs each step in MetaMask, so no private key is ever typed anywhere.</p>
+
+      <label>Step 1 · The gift contract</label>
+      <button id="deployGifts" style="margin-top:0">Deploy gift contract</button>
+
+      <div id="stockStep">
+        <label>Step 2 · A free test stock to gift</label>
+        <button id="deployStock" style="margin-top:0">Deploy test stock</button>
+      </div>
+      <div class="status" id="dStatus"></div>
+
+      <details style="margin-top:18px">
+        <summary>Addresses (filled in automatically)</summary>
+        <label for="cfgGifts">Gift contract address</label>
+        <input id="cfgGifts" placeholder="0x…" />
+        <label for="cfgToken">Token to gift <span class="muted" id="tokenHint"></span></label>
+        <input id="cfgToken" placeholder="0x…" />
+        <button id="saveCfg" class="ghost">Save addresses</button>
+        <div class="status" id="cfgStatus"></div>
+      </details>
     </div>
   </section>
 </main>
 
+<script src="bytecode.js"></script>
 <script>
-const INK_SEPOLIA = {
-  chainId: 763373,
-  hex: "0xba5ed",
-  name: "Ink Sepolia",
-  rpc: "https://rpc-gel-sepolia.inkonchain.com",
-  explorer: "https://explorer-sepolia.inkonchain.com",
+const NETWORKS = {
+  763373: { chainId: 763373, hex: "0xba5ed", name: "Ink Sepolia", testnet: true,
+    rpc: "https://rpc-gel-sepolia.inkonchain.com", explorer: "https://explorer-sepolia.inkonchain.com" },
+  57073: { chainId: 57073, hex: "0xdef1", name: "Ink", testnet: false,
+    rpc: "https://rpc-gel.inkonchain.com", explorer: "https://explorer.inkonchain.com" },
 };
 
 const GIFTS_ABI = [
@@ -155,31 +178,55 @@ function niceError(e) {
   if (/user rejected|denied/i.test(m)) return "You cancelled it in your wallet.";
   return m;
 }
+// ---------- network ----------
+const hashParams = new URLSearchParams(location.hash.slice(1));
+let NET = NETWORKS[hashParams.get("n")] || NETWORKS[store.get("net")] || NETWORKS[763373];
+
+function showNetwork() {
+  $("netPick").value = String(NET.chainId);
+  $("netBadge").textContent = NET.testnet ? "Ink Sepolia testnet · play money" : "Ink mainnet · real money";
+  $("netBadge").classList.toggle("main", !NET.testnet);
+  document.querySelectorAll(".netName").forEach((el) => el.textContent = NET.testnet ? "the testnet" : "Ink mainnet");
+  $("faucetBtn").classList.toggle("hidden", !NET.testnet);
+  $("stockStep").classList.toggle("hidden", !NET.testnet);
+  $("tokenHint").textContent = NET.testnet ? "(your test stock)" : "(paste a real token's address, e.g. an xStocks token)";
+  $("cfgGifts").value = store.get("gifts_" + NET.chainId);
+  $("cfgToken").value = store.get("token_" + NET.chainId);
+  $("who").textContent = "";
+}
+$("netPick").onchange = () => {
+  NET = NETWORKS[$("netPick").value];
+  store.set("net", String(NET.chainId));
+  showNetwork();
+};
+
 function config() {
-  const p = new URLSearchParams(location.hash.slice(1));
-  return { gifts: p.get("c") || store.get("gifts"), token: store.get("token") };
+  return {
+    gifts: hashParams.get("c") || store.get("gifts_" + NET.chainId),
+    token: store.get("token_" + NET.chainId),
+  };
 }
 
 // ---------- wallet ----------
-let signer = null;
 async function connect() {
   if (!window.ethereum) throw new Error("No wallet found. Install MetaMask (free) and reload this page.");
   await window.ethereum.request({ method: "eth_requestAccounts" });
   try {
-    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: INK_SEPOLIA.hex }] });
+    await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: NET.hex }] });
   } catch (e) {
     if (e.code !== 4902) throw e;
     await window.ethereum.request({ method: "wallet_addEthereumChain", params: [{
-      chainId: INK_SEPOLIA.hex, chainName: INK_SEPOLIA.name,
+      chainId: NET.hex, chainName: NET.name,
       nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-      rpcUrls: [INK_SEPOLIA.rpc], blockExplorerUrls: [INK_SEPOLIA.explorer],
+      rpcUrls: [NET.rpc], blockExplorerUrls: [NET.explorer],
     }] });
   }
   const provider = new ethers.BrowserProvider(window.ethereum);
-  signer = await provider.getSigner();
-  return signer;
+  const net = await provider.getNetwork();
+  if (Number(net.chainId) !== NET.chainId) throw new Error(`Switch MetaMask to ${NET.name} and try again.`);
+  return provider.getSigner();
 }
-const readProvider = () => new ethers.JsonRpcProvider(INK_SEPOLIA.rpc, INK_SEPOLIA.chainId);
+const readProvider = () => new ethers.JsonRpcProvider(NET.rpc, NET.chainId);
 
 // ---------- tabs ----------
 document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
@@ -188,19 +235,44 @@ document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
 });
 
 // ---------- setup ----------
-$("cfgGifts").value = store.get("gifts");
-$("cfgToken").value = store.get("token");
+function saveAddr(kind, addr) { store.set(`${kind}_${NET.chainId}`, addr); $(kind === "gifts" ? "cfgGifts" : "cfgToken").value = addr; }
 $("saveCfg").onclick = () => {
   const g = $("cfgGifts").value.trim(), t = $("cfgToken").value.trim();
   if (!ethers.isAddress(g) || !ethers.isAddress(t)) return setStatus($("cfgStatus"), "Both need to be 0x… addresses.", "bad");
-  store.set("gifts", g); store.set("token", t);
+  saveAddr("gifts", g); saveAddr("token", t);
   setStatus($("cfgStatus"), "Saved.", "ok");
 };
+
+async function deploy(kind, btn) {
+  const d = $("dStatus"); btn.disabled = true;
+  try {
+    if (!window.BYTECODE) throw new Error("bytecode.js is missing. Run: npm run export");
+    if (!NET.testnet && !confirm("This deploys on Ink MAINNET and costs real ETH (usually a few cents). Continue?")) throw new Error("Cancelled.");
+    const s = await connect();
+    const isGifts = kind === "gifts";
+    const factory = new ethers.ContractFactory(
+      isGifts ? [] : ["constructor(string name_, string symbol_)"],
+      isGifts ? BYTECODE.gifts : BYTECODE.stock, s);
+    setStatus(d, "Confirm in MetaMask…");
+    const c = isGifts ? await factory.deploy() : await factory.deploy("Test Apple", "tAAPLx");
+    setStatus(d, "Deploying… this takes a few seconds.");
+    await c.waitForDeployment();
+    const addr = await c.getAddress();
+    saveAddr(kind, addr);
+    setStatus(d, `${isGifts ? "Gift contract" : "Test stock"} is live at ${addr}. Saved.`, "ok");
+  } catch (e) { setStatus(d, niceError(e), "bad"); }
+  btn.disabled = false;
+}
+$("deployGifts").onclick = (e) => deploy("gifts", e.currentTarget);
+$("deployStock").onclick = (e) => deploy("token", e.currentTarget);
+
 function requireConfig(el) {
   const c = config();
-  if (!c.gifts || !c.token) { setStatus(el, "Open the Setup tab and paste your contract addresses first.", "bad"); return null; }
+  if (!c.gifts || !c.token) { setStatus(el, "Open the Setup tab and finish the steps there first.", "bad"); return null; }
   return c;
 }
+showNetwork();
+if (!config().gifts) document.querySelector('[data-tab="setup"]').click();
 
 // ---------- send ----------
 $("connectBtn").onclick = async () => {
@@ -212,7 +284,7 @@ $("faucetBtn").onclick = async () => {
   const c = requireConfig($("sStatus")); if (!c) return;
   const btn = $("faucetBtn"); btn.disabled = true;
   try {
-    const s = signer || await connect();
+    const s = await connect();
     const token = new ethers.Contract(c.token, TOKEN_ABI, s);
     setStatus($("sStatus"), "Confirm in your wallet…");
     const tx = await token.faucet(ethers.parseUnits("10", await token.decimals()));
@@ -226,7 +298,7 @@ $("sendBtn").onclick = async () => {
   const c = requireConfig($("sStatus")); if (!c) return;
   const btn = $("sendBtn"); btn.disabled = true; $("linkBox").classList.add("hidden");
   try {
-    const s = signer || await connect();
+    const s = await connect();
     const me = await s.getAddress();
     const token = new ethers.Contract(c.token, TOKEN_ABI, s);
     const gifts = new ethers.Contract(c.gifts, GIFTS_ABI, s);
@@ -251,7 +323,7 @@ $("sendBtn").onclick = async () => {
     await (await gifts.createGift(giftKey.address, c.token, amount, expiresAt, message)).wait();
 
     // The secret sits after "#", so it is never sent to any server.
-    const link = `${location.origin}${location.pathname}#k=${giftKey.privateKey}&c=${c.gifts}`;
+    const link = `${location.origin}${location.pathname}#k=${giftKey.privateKey}&c=${c.gifts}&n=${NET.chainId}`;
     $("giftLink").textContent = link;
     $("linkBox").classList.remove("hidden");
     setStatus($("sStatus"), "Wrapped! Send the link below to your friend.", "ok");
@@ -271,8 +343,9 @@ $("refundBtn").onclick = async () => {
     const p = new URLSearchParams(raw.split("#")[1] || "");
     const key = p.get("k"), giftsAddr = p.get("c") || config().gifts;
     if (!key || !giftsAddr) throw new Error("That doesn't look like a gift link.");
+    if (p.get("n") && Number(p.get("n")) !== NET.chainId) throw new Error(`That gift is on ${NETWORKS[p.get("n")]?.name || "another network"}. Switch the network picker at the top first.`);
     const giftKeyAddr = new ethers.Wallet(key).address;
-    const s = signer || await connect();
+    const s = await connect();
     const gifts = new ethers.Contract(giftsAddr, GIFTS_ABI, s);
     setStatus($("rStatus"), "Confirm in your wallet…");
     await (await gifts.refund(giftKeyAddr)).wait();
@@ -292,6 +365,7 @@ async function loadClaim() {
   const key = p.get("k"), giftsAddr = p.get("c");
   if (!key) return;
   $("claimView").classList.remove("hidden");
+  $("netPick").classList.add("hidden");
   $("sendView").classList.add("hidden");
   let giftKey;
   try { giftKey = new ethers.Wallet(key); } catch { return setStatus($("cStatus"), "This link is broken.", "bad"); }
@@ -315,7 +389,7 @@ async function loadClaim() {
   $("claimBtn").onclick = async () => {
     const btn = $("claimBtn"); btn.disabled = true;
     try {
-      const s = signer || await connect();
+      const s = await connect();
       const me = await s.getAddress();
       const gifts = new ethers.Contract(giftsAddr, GIFTS_ABI, s);
       // The link's secret signs "send it to me", so nobody can redirect it.

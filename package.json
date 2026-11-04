@@ -6,7 +6,8 @@
     "test": "hardhat test",
     "compile": "hardhat compile",
     "deploy": "hardhat run scripts/deploy.js --network inkSepolia",
-    "web": "npx --yes http-server web -p 8080 -c-1"
+    "web": "npx --yes http-server web -p 8080 -c-1",
+    "export": "hardhat compile && node scripts/export-bytecode.js"
   },
   "keywords": [],
   "author": "",

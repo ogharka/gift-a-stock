@@ -2,7 +2,7 @@
 
 Wrap a slice of a tokenized stock in a link. Your friend opens the link, connects a wallet, and the shares land in their wallet. If they don't claim it in time, you can take it back.
 
-This version runs on **Ink Sepolia, Ink's testnet**. Everything uses free play money.
+It works on **Ink Sepolia** (the free testnet) and **Ink mainnet**. Start on the testnet.
 
 ---
 
@@ -19,41 +19,31 @@ This version runs on **Ink Sepolia, Ink's testnet**. Everything uses free play m
 
 ---
 
-## Setup on your Mac (one time, all free)
+## The easy way: no Terminal, no private key
 
-**1. Install Node.js.** Download the LTS version from nodejs.org and run the installer.
+1. Open the live site: **https://ogharka.github.io/gift-a-stock/**
+2. Install **MetaMask** (free) if you haven't.
+3. Pick **Testnet (free)** at the top. Get a little free test ETH from an "Ink Sepolia faucet".
+4. **Setup tab** → **Deploy gift contract** → approve in MetaMask. Then **Deploy test stock** → approve.
+5. **Send a gift tab** → **Get 10 free test shares** → **Wrap the gift** → copy the link.
+6. Open the link in another browser, or with a second MetaMask account → **Claim**.
 
-**2. Install the project.** Open Terminal, `cd` into this folder, and run:
+When the testnet run works, switch the picker to **Mainnet** and repeat step 4 with your own wallet. That costs a few cents of real ETH. On mainnet there's no test stock, so paste a real token's address under **Setup → Addresses**.
+
+Your wallet signs everything in MetaMask, so the private key is never typed or pasted anywhere.
+
+---
+
+## For developers (optional)
+
 ```bash
 npm install
-npm test
+npm test          # 8 contract checks
+npm run export    # after changing a contract: refreshes web/bytecode.js for the Deploy buttons
+npm run web       # serve the site at http://localhost:8080
 ```
-You should see **8 passing**.
 
-**3. Make a testnet-only wallet.** Install MetaMask in your browser and create a **new account just for testing**. Never put real money in it. To get its private key: MetaMask → account menu → Account details → Show private key.
-
-**4. Get free test ETH on Ink Sepolia.** Search for an "Ink Sepolia faucet". The official Ink docs list some. Paste in your test wallet's address. You only need a tiny amount.
-
-**5. Deploy.** In Terminal:
-```bash
-export PRIVATE_KEY=0xYOUR_TEST_WALLET_KEY
-npm run deploy
-```
-It prints two addresses. Keep them.
-
-> If the deploy can't connect, make a free account at alchemy.com, create an Ink Sepolia app, and run
-> `export INK_SEPOLIA_RPC=https://ink-sepolia.g.alchemy.com/v2/YOUR_KEY` before deploying again.
-
-**6. Open the web page.**
-```bash
-npm run web
-```
-Open the address it shows (http://localhost:8080). Go to the **Setup** tab and paste the two addresses. Then:
-- **Connect wallet**. MetaMask will offer to add Ink Sepolia.
-- **Get 10 free test shares**
-- **Wrap the gift** → copy the link → open it in another browser or with a second MetaMask account → **Claim**.
-
-**7. Put it online for free (optional).** Upload the `web` folder to GitHub Pages, Netlify, or Vercel. Each of them has a free plan.
+`npm run deploy` deploys from Terminal instead, but it needs `PRIVATE_KEY` set, so only use it with a throwaway testnet wallet.
 
 ---
 
@@ -65,7 +55,9 @@ Open the address it shows (http://localhost:8080). Go to the **Setup** tab and p
 | `contracts/MockStock.sol` | A free test "stock" for the testnet, with a mint button |
 | `test/GiftAStock.test.js` | 8 automatic checks: claiming, copycat protection, double-claim, refunds |
 | `scripts/deploy.js` | Deploys both contracts |
-| `web/index.html` | The whole website in one file |
+| `web/index.html` | The whole website, with Deploy, Send, Claim and Refund |
+| `web/bytecode.js` | The compiled contracts the Deploy buttons use |
+| `scripts/export-bytecode.js` | Rebuilds `web/bytecode.js` |
 
 ## Ideas for next steps
 - **Email login:** let friends without a wallet claim with just an email (Privy and Dynamic have free tiers).
