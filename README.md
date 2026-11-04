@@ -1,5 +1,7 @@
 # Gift a Stock 🎁
 
+Built by [`0xB32e1CD467Cd9d0F79B76765Eff0f7531b6141Ef`](https://explorer.inkonchain.com/address/0xB32e1CD467Cd9d0F79B76765Eff0f7531b6141Ef) on Ink.
+
 Wrap a slice of a tokenized stock in a link. Your friend opens the link, connects a wallet, and the shares land in their wallet. If they don't claim it in time, you can take it back.
 
 It works on **Ink Sepolia** (the free testnet) and **Ink mainnet**. Start on the testnet.

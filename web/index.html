@@ -55,6 +55,9 @@
   .netbar .testnet { margin: 0; }
   .netbar select { width: auto; padding: 6px 10px; font-size: 14px; }
   .testnet.main { background: var(--bad); color: #fff; }
+  .credit { text-align: center; font-size: 13px; color: var(--muted); margin-top: 28px; }
+  .credit a { color: var(--accent); text-decoration: none; font-family: ui-monospace, Menlo, monospace; }
+  .credit a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -140,6 +143,10 @@
       </details>
     </div>
   </section>
+
+  <footer class="credit">
+    Built by <a href="https://explorer.inkonchain.com/address/0xB32e1CD467Cd9d0F79B76765Eff0f7531b6141Ef" target="_blank" rel="noopener">0xB32e…41Ef</a> on Ink
+  </footer>
 </main>
 
 <script src="bytecode.js"></script>
