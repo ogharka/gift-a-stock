@@ -25,6 +25,11 @@ describe("GiftAStock", function () {
     return { sender, friend, attacker, stock, gifts, giftKey, expiresAt, sign };
   }
 
+  it("records the deployer as the developer", async function () {
+    const { gifts, sender } = await setup();
+    expect(await gifts.developer()).to.equal(sender.address);
+  });
+
   it("locks the stock and stores the message", async function () {
     const { gifts, stock, giftKey, sender } = await setup();
     const g = await gifts.gifts(giftKey.address);

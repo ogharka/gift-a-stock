@@ -38,7 +38,7 @@ Your wallet signs everything in MetaMask, so the private key is never typed or p
 
 ```bash
 npm install
-npm test          # 8 contract checks
+npm test          # 9 contract checks
 npm run export    # after changing a contract: refreshes web/bytecode.js for the Deploy buttons
 npm run web       # serve the site at http://localhost:8080
 ```
@@ -53,7 +53,7 @@ npm run web       # serve the site at http://localhost:8080
 |---|---|
 | `contracts/GiftAStock.sol` | The gift contract. It works with any ERC-20 token, including xStocks tokens. |
 | `contracts/MockStock.sol` | A free test "stock" for the testnet, with a mint button |
-| `test/GiftAStock.test.js` | 8 automatic checks: claiming, copycat protection, double-claim, refunds |
+| `test/GiftAStock.test.js` | 9 automatic checks: developer credit, claiming, copycat protection, double-claim, refunds |
 | `scripts/deploy.js` | Deploys both contracts |
 | `web/index.html` | The whole website, with Deploy, Send, Claim and Refund |
 | `web/bytecode.js` | The compiled contracts the Deploy buttons use |

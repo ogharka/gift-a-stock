@@ -156,6 +156,7 @@ const GIFTS_ABI = [
   "function claim(address giftKey,address recipient,bytes signature)",
   "function refund(address giftKey)",
   "function claimHash(address giftKey,address recipient) view returns (bytes32)",
+  "function developer() view returns (address)",
   "function gifts(address) view returns (address sender,address token,uint256 amount,uint64 expiresAt,bool settled,string message)",
 ];
 const TOKEN_ABI = [
@@ -259,7 +260,8 @@ async function deploy(kind, btn) {
     await c.waitForDeployment();
     const addr = await c.getAddress();
     saveAddr(kind, addr);
-    setStatus(d, `${isGifts ? "Gift contract" : "Test stock"} is live at ${addr}. Saved.`, "ok");
+    const dev = isGifts ? ` Developer on record: ${await s.getAddress()}.` : "";
+    setStatus(d, `${isGifts ? "Gift contract" : "Test stock"} is live at ${addr}.${dev} Saved.`, "ok");
   } catch (e) { setStatus(d, niceError(e), "bad"); }
   btn.disabled = false;
 }

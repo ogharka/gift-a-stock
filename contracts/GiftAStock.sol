@@ -28,6 +28,10 @@ contract GiftAStock is ReentrancyGuard {
 
     uint256 public constant MAX_MESSAGE_LENGTH = 280;
 
+    /// @notice The wallet that deployed this contract: the project's developer.
+    ///         It is a public credit only. It has no special powers over gifts.
+    address public immutable developer;
+
     /// @dev giftKey (public address of the one-time key) => gift
     mapping(address => Gift) public gifts;
 
@@ -43,6 +47,13 @@ contract GiftAStock is ReentrancyGuard {
     error NotExpired();
     error NotSender();
     error BadSignature();
+
+    event DeveloperSet(address indexed developer);
+
+    constructor() {
+        developer = msg.sender;
+        emit DeveloperSet(msg.sender);
+    }
 
     /// @notice Create a gift. Approve this contract for `amount` of `token` first.
     function createGift(
